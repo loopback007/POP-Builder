@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Network PoP Builder</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <div class="container">
+    <h1>Network PoP (Point of Presence) Builder</h1>
+    <p>Plan capacity upgrades using forecast demand, traffic dispersion, and redundancy strategy.</p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert {{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <section class="panel">
+      <h2>Input Parameters</h2>
+      <form method="post">
+        <div class="grid">
+          <label>Sales Forecast (Gbps)
+            <input type="number" name="forecast_gbps" value="1200" required>
+          </label>
+          <label>Intl Traffic Split (%)
+            <input type="number" name="intl_split" value="40" min="0" max="100" required>
+          </label>
+          <label>Design Strategy
+            <select name="strategy">
+              <option value="Run Hot">Run Hot (95%)</option>
+              <option value="N+1">N+1 (50%)</option>
+            </select>
+          </label>
+          <label>Required Port Speed (Gbps)
+            <input type="number" name="req_speed" value="100" required>
+          </label>
+          <label>Required Port Count
+            <input type="number" name="req_count" value="5" required>
+          </label>
+          <label>Requirement Role
+            <select name="req_role">
+              <option value="Intl">International</option>
+              <option value="Dom">Domestic</option>
+            </select>
+          </label>
+        </div>
+        <button type="submit">Run Solver</button>
+      </form>
+    </section>
+
+    {% if site %}
+    <section class="panel">
+      <h2>Current Site State: {{ site.name }}</h2>
+      <ul>
+      {% for chassis in site.chassis %}
+        <li>
+          {{ chassis.name }} ({{ chassis.total_slots }} slots, max/slot {{ chassis.max_throughput_per_slot }} Gbps)
+          <ul>
+            {% for slot in chassis.slots %}
+              <li>Slot {{ slot.slot_index }} [{{ slot.role_tag }}]: {{ slot.line_card.name if slot.line_card else 'Free' }}</li>
+            {% endfor %}
+          </ul>
+        </li>
+      {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
+    {% if result %}
+    <section class="panel">
+      <h2>Capacity Summary</h2>
+      <table>
+        <tr><th>Bucket</th><th>Current Capacity (Gbps)</th><th>Required Capacity (Gbps)</th><th>Post-Upgrade Capacity (Gbps)</th></tr>
+        <tr>
+          <td>International</td>
+          <td>{{ result.baseline.Intl.throughput|round(2) }}</td>
+          <td>{{ result.needed.Intl|round(2) }}</td>
+          <td>{{ result.current.Intl.throughput|round(2) }}</td>
+        </tr>
+        <tr>
+          <td>Domestic</td>
+          <td>{{ result.baseline.Dom.throughput|round(2) }}</td>
+          <td>{{ result.needed.Dom|round(2) }}</td>
+          <td>{{ result.current.Dom.throughput|round(2) }}</td>
+        </tr>
+      </table>
+
+      <h2>Generated BOM</h2>
+      <table>
+        <tr><th>Hardware</th><th>Type</th><th>Qty</th><th>Unit Cost</th><th>Total Cost</th></tr>
+        {% for row in result.bom %}
+        <tr>
+          <td>{{ row.item }}</td>
+          <td>{{ row.type }}</td>
+          <td>{{ row.qty }}</td>
+          <td>${{ '%.2f'|format(row.unit_cost) }}</td>
+          <td>${{ '%.2f'|format(row.total_cost) }}</td>
+        </tr>
+        {% endfor %}
+        <tr><td colspan="4"><strong>Grand Total</strong></td><td><strong>${{ '%.2f'|format(result.total_cost) }}</strong></td></tr>
+      </table>
+
+      <h2>Post-Upgrade State</h2>
+      <ul>
+      {% for item in result.post_state %}
+        <li>{{ item }}</li>
+      {% endfor %}
+      </ul>
+
+      <a class="btn" href="{{ url_for('export_csv') }}">Export CSV</a>
+    </section>
+    {% endif %}
+  </div>
+</body>
+</html>

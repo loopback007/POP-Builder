@@ -1,0 +1,77 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-popuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-poppass}
+      POSTGRES_DB: ${POSTGRES_DB:-popbuilder}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - pop_net
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - pop_net
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      FLASK_ENV: ${FLASK_ENV:-development}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-popuser}:${POSTGRES_PASSWORD:-poppass}@db:5432/${POSTGRES_DB:-popbuilder}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      POSTGRES_USER: ${POSTGRES_USER:-popuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-poppass}
+      POSTGRES_DB: ${POSTGRES_DB:-popbuilder}
+    depends_on:
+      - db
+      - redis
+    command: gunicorn -w 4 -b 0.0.0.0:8000 app:app
+    networks:
+      - pop_net
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      FLASK_ENV: ${FLASK_ENV:-development}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-popuser}:${POSTGRES_PASSWORD:-poppass}@db:5432/${POSTGRES_DB:-popbuilder}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      POSTGRES_USER: ${POSTGRES_USER:-popuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-poppass}
+      POSTGRES_DB: ${POSTGRES_DB:-popbuilder}
+    depends_on:
+      - db
+      - redis
+    command: python worker.py
+    networks:
+      - pop_net
+
+  nginx:
+    image: nginx:1.27-alpine
+    depends_on:
+      - web
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./static:/app/static:ro
+    networks:
+      - pop_net
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  pop_net:
+    driver: bridge
