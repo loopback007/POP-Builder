@@ -21,7 +21,7 @@ class Site(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False, unique=True)
-    site_metadata = db.Column("metadata", JSONB, nullable=False, default=dict)
+    metadata = db.Column(JSONB, nullable=False, default=dict)
     chassis = db.relationship("Chassis", back_populates="site", cascade="all, delete-orphan")
 
 

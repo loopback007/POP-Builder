@@ -52,7 +52,7 @@ services:
     depends_on:
       - db
       - redis
-    command: python worker.py
+    command: rq worker pop-jobs --url redis://redis:6379/0
     networks:
       - pop_net
 
